@@ -27,8 +27,8 @@ def random_weights(d,L,weight_type = "unif_B^d", seed = 0, nu = None):
         - "unif_S^d-1": Uniformly distributed on the (d-1)-dimensional sphere S^(d-1).
         - "unif_B^d": Uniformly distributed inside the unit ball B^d_1.
         - "t-student": standard d-dimensional t-student distribution with nu degrees of freedom.
-        - "gonon": Uniformly distributed inside the unit ball B^d_1, with uniform biases
-                   over [-sqrt(d),sqrt(d)],  as R = L^{1/(2k-2\eps+1) ~ 1.
+        - "unif_B^d+bias": Uniformly distributed inside the unit ball B^d_1, with uniform biases
+                   over [-sqrt(d),sqrt(d)] (as R = L^{1/(2k-2\eps+1) ~ 1).
     
     seed : int, optional, default=0
         The seed for the random number generator, ensuring reproducibility.
@@ -120,6 +120,7 @@ def compute_X_R_F(results, char_cols, date,W, activation = "ReLU", normalize = F
         - "ReLU": Applies the Rectified Linear Unit function (ReLU).
         - "tanh": Applies the hyperbolic tangent function (tanh).
         - "sigmoid": Applies the sigmoid function.
+        - "cos_sin": Applies the cosine and sine activations.
         An error is raised if an invalid activation function is provided.
 
     normalize : bool, optional (default=False)
@@ -152,13 +153,11 @@ def compute_X_R_F(results, char_cols, date,W, activation = "ReLU", normalize = F
 
     Notes:
     ------
-    The function assumes that `results` is a pre-existing DataFrame with relevant data, 
-    and that `cols_ratios` and `cols_lags` are predefined lists of column names. The 
-    adjusted returns (`R_e_adj`) are expected to be a column in the DataFrame `results`.
+    The adjusted excess returns (`R_e_adj`) is expected to be a column in the DataFrame `results`.
 
     Example:
     --------
-    X, R, F = compute_X_R_F("2023-01-31", W, activation="tanh", normalize=False)
+    X, R, F = compute_X_R_F("2023-01-31", W, results, char_cols, activation="tanh", normalize=False)
     """
     Z_R = results[results["date"] == date]
     Z = Z_R[char_cols].to_numpy()
@@ -202,6 +201,8 @@ def simple_split_SDF(F, W, dates_list, IS_size, L, results, char_cols, activatio
     - dates_list: List of dates corresponding to the time points in F.
     - IS_size: Size of the in-sample (IS) period.
     - L: Number of factors/portfolio coefficients.
+    - results: Dataframe of results.
+    - char_cols: columns of characteristics in the results.
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
     - gammas: List of egularization parameters.
@@ -253,6 +254,8 @@ def rolling_window_SDF(F, W, dates_list, rolling_window_size, L, results,char_co
     - dates_list: List of dates corresponding to the time points in F.
     - rolling_window_size: Size of the rolling window for the in-sample (IS) period.
     - L: Number of factors/portfolio coefficients.
+    - results: Dataframe of results.
+    - char_cols: columns of characteristics in the results.
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
     - gammas: List of regularization parameters.
@@ -305,6 +308,8 @@ def different_number_factors_SDF(F, W, dates_list, rolling_window_size, d, multi
     - rolling_window_size: Size of the rolling window for the in-sample (IS) period.
     - d: number of basic characteristics.
     - multipliers: List of multipliers to determine the number of random features.
+    - results: Dataframe of results.
+    - char_cols: columns of characteristics in the results.
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
     - gammas: List of regularization parameters.
@@ -366,6 +371,8 @@ def rolling_cv_SDF(F, W, dates_list, rolling_window_size, gammas, results, char_
     - dates_list: List of dates corresponding to the time points in F.
     - rolling_window_size: Size of the rolling window for the in-sample (IS) period.
     - gammas: List of regularization parameters.
+    - results: Dataframe of results.
+    - char_cols: columns of characteristics in the results.
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
 
@@ -448,8 +455,10 @@ def convergence_SDF(F, W, dates_list, rolling_window_size, Ts, Ls, results,char_
     - W: Random weights.
     - dates_list: List of dates corresponding to the time points in F.
     - rolling_window_size: Size of the rolling window for the in-sample (IS) period.
-    - d: number of basic characteristics.
-    - multipliers: List of multipliers to determine the number of random features.
+    - Ts: list of sample sizes for training.
+    - Ls: list of number of random features considered.
+    - results: Dataframe of results.
+    - char_cols: columns of characteristics in the results.
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
     - gammas: List of regularization parameters.
