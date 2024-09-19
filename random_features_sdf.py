@@ -304,7 +304,7 @@ def different_number_factors_SDF(F, W, dates_list, rolling_window_size, d, multi
     Parameters:
     - F: Factor matrix (number of factors x number of time points).
     - W: Random weights.
-    - dates_list: List of dates corresponding to the time points in F.
+    - dates_list: List of dates (datetimes) corresponding to the time points in F.
     - rolling_window_size: Size of the rolling window for the in-sample (IS) period.
     - d: number of basic characteristics.
     - multipliers: List of multipliers to determine the number of random features.
@@ -313,6 +313,7 @@ def different_number_factors_SDF(F, W, dates_list, rolling_window_size, d, multi
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
     - gammas: List of regularization parameters.
+    - xi: optional, biases.
 
     Returns:
     - SR_OOS_all: Out-of-sample Sharpe ratios for each number of random features and gammas.
@@ -325,20 +326,20 @@ def different_number_factors_SDF(F, W, dates_list, rolling_window_size, d, multi
     R_P_OOS_all = np.zeros((len(multipliers), n_gamma, T - rolling_window_size))
     Norm_OOS_all = np.zeros((len(multipliers), n_gamma, T - rolling_window_size))
     ones_gammas = np.ones((n_gamma))
-    for m_idx, multiplier in enumerate(multipliers):
-        L_m = int(multiplier * d)
-        for t, date in enumerate(dates_list[rolling_window_size:], start=rolling_window_size):
-            F_IS = F[:L_m, t - rolling_window_size:t]
 
+    for t, date in enumerate(dates_list[rolling_window_size:], start=rolling_window_size):
+        X, R, Fs = compute_X_R_F(results,char_cols,date,W,activation,normalize, xi = xi)
+        for m_idx, multiplier in enumerate(multipliers):
+            L_m = int(multiplier * d)
+            F_IS = F[:L_m, t - rolling_window_size:t]
             b_hat = np.zeros((n_gamma, L_m))
             B = F_IS.T @ F_IS
             for i, gamma in enumerate(gammas):
                 b_hat[i, :] = (1 / rolling_window_size) * F_IS @ np.linalg.solve((1 / rolling_window_size) * B + gamma * np.eye(rolling_window_size), np.ones(rolling_window_size))
 
             # Compute portfolio excess returns out of sample
-            X, R, F_t = compute_X_R_F(results,char_cols,date,W,activation,normalize, xi = xi)
             X_t = X[:,:L_m]
-            F_t = F_t[:L_m]
+            F_t = Fs[:L_m]
             v_t = X_t @ b_hat.T
             w_t = v_t/np.linalg.norm(v_t, axis = 0, ord = 1)
             R_P_OOS_day = w_t.T @ R
@@ -346,7 +347,8 @@ def different_number_factors_SDF(F, W, dates_list, rolling_window_size, d, multi
             prediction = b_hat @ F_t
             objective = (ones_gammas - prediction) ** 2
             Norm_OOS_all[m_idx, :, t - rolling_window_size] = objective
-        print("Finished processing multiplier:", multiplier)
+        if date.month == 12:
+            print("Finished processing year:", date.year)
 
     # Compute OOS Sharpe ratios for each combination of factors and gammas
     SR_OOS_all = np.zeros((len(multipliers), n_gamma))
@@ -445,7 +447,7 @@ def rolling_cv_SDF(F, W, dates_list, rolling_window_size, gammas, results, char_
     SR_OOS_cv = np.mean(R_P_OOS_cv) / np.std(R_P_OOS_cv) * np.sqrt(12)
 
     return R_P_OOS_cv, SR_OOS_cv, optimal_gammas
-
+    
 def convergence_SDF(F, W, dates_list, rolling_window_size, Ts, Ls, results,char_cols, activation, normalize, gammas, xi = 0):
     """
     Computes out-of-sample Sharpe ratios for different number of random features, rolling window sizes and gammas.
@@ -462,6 +464,7 @@ def convergence_SDF(F, W, dates_list, rolling_window_size, Ts, Ls, results,char_
     - activation: Activation function.
     - normalize: Boolean indicating whether to normalize (False by default).
     - gammas: List of regularization parameters.
+    - xi: optional, biases.
 
     Returns:
     - SR_OOS_all: Out-of-sample Sharpe ratios for each number of random features and gammas.
@@ -475,21 +478,19 @@ def convergence_SDF(F, W, dates_list, rolling_window_size, Ts, Ls, results,char_
     R_P_OOS_all = np.zeros((n_factors, n_gamma, T - rolling_window_size))
     Norm_OOS_all = np.zeros((n_factors, n_gamma, T - rolling_window_size))
     ones_gammas = np.ones((n_gamma))
-    for m_idx, L_m in enumerate(Ls):
-        for t, date in enumerate(dates_list[rolling_window_size:], start=rolling_window_size):
-            
+    for t, date in enumerate(dates_list[rolling_window_size:], start=rolling_window_size):
+        X, R, Fs = compute_X_R_F(results, char_cols, date,W,activation,normalize, xi = xi)
+        for m_idx, L_m in enumerate(Ls):
             rolling_size = Ts[m_idx]
             F_IS = F[:L_m, t - rolling_size:t]
-
             b_hat = np.zeros((n_gamma, L_m))
             B = F_IS.T @ F_IS
             for i, gamma in enumerate(gammas):
                 b_hat[i, :] = (1 / rolling_size) * F_IS @ np.linalg.solve((1 / rolling_size) * B + gamma * np.eye(rolling_size), np.ones(rolling_size))
 
             # Compute portfolio excess returns out of sample
-            X, R, F_t = compute_X_R_F(results, char_cols, date,W,activation,normalize, xi = xi)
             X_t = X[:,:L_m]
-            F_t = F_t[:L_m]
+            F_t = Fs[:L_m]
             v_t = X_t @ b_hat.T
             w_t = v_t/np.linalg.norm(v_t, axis = 0, ord = 1)
             R_P_OOS_day = w_t.T @ R
@@ -497,7 +498,8 @@ def convergence_SDF(F, W, dates_list, rolling_window_size, Ts, Ls, results,char_
             prediction = b_hat @ F_t
             objective = (ones_gammas - prediction) ** 2
             Norm_OOS_all[m_idx, :, t - rolling_window_size] = objective
-        print("Finished processing model with: ", L_m, " factors.")
+        if date.month == 12:
+            print("Finished processing year: ", date.year)
 
     # Compute OOS Sharpe ratios for each combination of factors and gammas
     SR_OOS_all = np.zeros((n_factors, n_gamma))
